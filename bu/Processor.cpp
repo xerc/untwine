@@ -351,6 +351,41 @@ Processor::writeOctantCompressed(const OctantInfo& o, Index& index, IndexIter po
 
     PointViewPtr view(new pdal::PointView(table));
 
+    PointLayoutPtr layout = view->layout();
+
+    StringList removedDims, missingDims, errors;
+
+    auto requireDim = [&](Dimension::Id dim)
+    {
+        if (layout->hasDim(dim))
+            return;
+
+        std::string name = Dimension::name(dim);
+        bool removed = !m_b.opts.dimNames.empty() && !pdal::Utils::contains(m_b.opts.dimNames, name);
+        StringList& list = removed ? removedDims : missingDims;
+
+        if (!pdal::Utils::contains(list, name))
+            list.push_back(name);
+    };
+
+    for (Dimension::Id dim : lasDims())
+    {
+        if (lasFormatSupportsDim(m_b.pointFormatId, dim))
+            requireDim(dim);
+    }
+
+    if (layout->findDim(UntwineBitsDimName) == Dimension::Id::Unknown)
+        errors.push_back("Missing required LAS flag byte when writing COPC output.");
+
+    if (!removedDims.empty())
+        errors.push_back("Required dimensions shall not be removed via `--dims`: " + pdal::Utils::join(removedDims, ",") + ".");
+
+    if (!missingDims.empty())
+        errors.push_back("Missing required dimensions when writing COPC output: " + pdal::Utils::join(missingDims, ",") + ".");
+
+    if (!errors.empty())
+        throw FatalError(pdal::Utils::join(errors, "\n"));
+
     // The octant's points can came from one or more FileInfo.  The points are sorted such
     // all the points that come from a single FileInfo are consecutive.
     auto fii = o.fileInfos().begin();

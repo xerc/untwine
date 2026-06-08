@@ -127,12 +127,12 @@ inline int getUntwineBitPos(const std::string& s)
     return it->second;
 }
 
-inline bool isExtraDim(const std::string& name)
+inline const std::array<pdal::Dimension::Id, 15>& lasDims()
 {
     using namespace pdal;
     using D = Dimension::Id;
 
-    static const std::array<Dimension::Id, 15> lasDims
+    static const std::array<Dimension::Id, 15> dims
     {
         D::X,
         D::Y,
@@ -151,8 +151,26 @@ inline bool isExtraDim(const std::string& name)
         D::Infrared
     };
 
-    D id = Dimension::id(name);
-    for (Dimension::Id lasId : lasDims)
+    return dims;
+}
+
+inline bool lasFormatSupportsDim(int formatId, pdal::Dimension::Id dim)
+{
+    using namespace pdal;
+
+    if (dim == Dimension::Id::Red || dim == Dimension::Id::Green || dim == Dimension::Id::Blue)
+        return formatId == 7 || formatId == 8;
+    if (dim == Dimension::Id::Infrared)
+        return formatId == 8;
+    return true;
+}
+
+inline bool isExtraDim(const std::string& name)
+{
+    using namespace pdal;
+
+    Dimension::Id id = Dimension::id(name);
+    for (Dimension::Id lasId : lasDims())
         if (lasId == id)
             return false;
     return (name != UntwineBitsDimName);
