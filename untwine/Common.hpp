@@ -1,9 +1,12 @@
 #pragma once
 
 #include <stdint.h>
+
+#include <algorithm>
 #include <array>
 #include <limits>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -98,33 +101,54 @@ const pdal::Dimension::Type UntwineBitsType { pdal::Dimension::Type::Unsigned8 }
 
 // PDAL explodes the class flags, leaving us with the following dimensions that map to the
 // special "untwine bits" dimension.
-inline bool isUntwineBitsDim(const std::string& s)
+inline bool isUntwineBitsDim(std::string_view s)
 {
-    static const std::vector<std::string> bitsDims
-        { "Synthetic", "KeyPoint", "Overlap", "Withheld", "ScanChannel",
-          "ScanDirectionFlag", "EdgeOfFlightLine", "ClassFlags" };
+    // IMPORTANT: `lower_bound` needs alphabetically order!
+    static const std::array<std::string_view, 8> bitsDims{
+        "ClassFlags",
+        "EdgeOfFlightLine",
+        "KeyPoint",
+        "Overlap",
+        "ScanChannel",
+        "ScanDirectionFlag",
+        "Synthetic",
+        "Withheld"
+    };
 
-    return std::find(bitsDims.begin(), bitsDims.end(), s) != bitsDims.end();
+    return std::binary_search(bitsDims.begin(), bitsDims.end(), s);
 }
-
 // The position is the bit position of a bit, or the number of bits to shift an integer
 // value to get it to the right location in the UntwineBits dimension.
-inline int getUntwineBitPos(const std::string& s)
+inline int getUntwineBitPos(std::string_view s)
 {
-    static std::unordered_map<std::string, int> positions {
-        {"Synthetic", 0},
+    struct Entry {
+        std::string_view key;
+        int value;
+    };
+
+    // IMPORTANT: `lower_bound` needs alphabetically order!
+    static const std::array<Entry, 8> positions{{
+        {"ClassFlags", 0},
+        {"EdgeOfFlightLine", 7},
         {"KeyPoint", 1},
-        {"Withheld", 2},
         {"Overlap", 3},
         {"ScanChannel", 5},
         {"ScanDirectionFlag", 6},
-        {"EdgeOfFlightLine", 7},
-        {"ClassFlags", 0}
+        {"Synthetic", 0},
+        {"Withheld", 2}
+    }};
+
+    struct Comp {
+        bool operator()(const Entry& e, std::string_view k) const { return e.key < k; }
+        bool operator()(std::string_view k, const Entry& e) const { return k < e.key; }
     };
-    auto it = positions.find(s);
-    if (it == positions.end())
-        return -1;
-    return it->second;
+
+    auto it = std::lower_bound(positions.begin(), positions.end(), s, Comp{});
+
+    if (it != positions.end() && it->key == s)
+        return it->value;
+
+    return -1;
 }
 
 inline bool isExtraDim(const std::string& name)
